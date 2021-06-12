@@ -3,7 +3,7 @@
  *   https://github.com/brozeph/node-craigslist
  * Deno port: Kieran Gill
  */
-import { urlParse, cheerio, TagElement } from './deps.ts';
+import { urlParse, cheerio } from './deps.ts';
 import { CATEGORY_MAP } from './categories.ts'
 import type { Posting, PostingDetailsPartial, ReplyDetails, ClientOpts, ClientInitOpts } from './types.ts'
 import core from './core.ts';
@@ -129,9 +129,7 @@ function _getPostingDetails (postingUrl: string, markup: string): PostingDetails
 	$('div.mapAndAttrs')
 		.find('p.attrgroup')
 		.each((_i, group) => {
-			// @ts-ignore
-			group.children()
-				.each((_i: number, element: TagElement) => {
+			$(group).each((_i, element) => {
 					if ($(element).is('span')) {
 						const attribute = $(element).text().split(/:\s/);
 						attributes[attribute[0].replace(/\s/g, '_')] = attribute[1];
