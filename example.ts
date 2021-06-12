@@ -14,7 +14,6 @@ const listings = await client.list({
 	hasPic: true,
 })
 
-
 console.log(listings[0])
 
 const details = await client.details(listings[0])

@@ -6,6 +6,7 @@
 // import { Request } from 'reqlib';
 import { urlParse, cheerio } from './deps.ts';
 import { CATEGORY_MAP } from './categories.ts'
+import type { Posting, PostingDetailsPartial, ReplyDetails, ClientOpts, ClientInitOpts } from './types.ts'
 import core from './core.ts';
 
 const debugLog = (name: string) => (message: string) => console.debug(`[${name}]: ${message}`)
@@ -76,21 +77,6 @@ const
  * @param markup - Markup from the request to Craigslist
  * @returns {object} details - The processed details from the Craigslist posting
  **/
-interface PostingDetailsPartial {
-	title: string
-	url: string
-
-	// TODO these may be optional?
-	postedAt: Date
-	updatedAt?: Date
-	pid: string
-
-	images: string[]
-	description: string
-	mapUrl?: string
-	replyUrl: string | URL
-	attributes: Record<string, string>
-}
 function _getPostingDetails (postingUrl: string, markup: string): PostingDetailsPartial {
 	const $ = cheerio.load(markup)
 	
@@ -172,18 +158,7 @@ function _getPostingDetails (postingUrl: string, markup: string): PostingDetails
 	}
 }
 
-interface Posting {
-	// TODO unknown right now means unknown by me
-	category: unknown
-	date: string
-	hasPic: boolean
-	coordinates?: { lat: string, lon: string }
-	location: string
-	pid: string
-	price: string
-	title: string
-	url: string
-}
+
 
 /**
  * Accepts string of HTML and parses that string to find all pertinent postings.
@@ -262,11 +237,6 @@ function _getPostings (options: { hostname: string, secure: boolean }, markup: s
 	return postings;
 }
 
-interface ReplyDetails {
-	email?: string
-	contactName?: string
-	phoneNumber?: string
-}
 /**
  * Accepts strong of HTML and parses that string to find key details.
  *
@@ -558,55 +528,6 @@ function _getRequestOptions (client: Client, options: ClientOpts, query?: string
 	return requestOptions;
 }
 
-type ClientCallback = (...args: unknown[]) => unknown
-
-interface ClientOpts {
-	// defines the city for the search (NOTE: this field is required by #list and #search when not specified in the constructor)
-	city?: string 
-	// allows for specification of the base domain (defaults to craigslist.org) to support other countries (i.e. for Canada, craigslist.ca)
-	baseHost?: string 
-	// allows for specification of the category (defaults to sss) to search in other categories
-	// TODO type this
-	category?: keyof typeof CATEGORY_MAP
-	// applies appropriate headers on request to attempt to bypass any caches
-	nocache?: string 
-
-	// TODO no idea
-	replyUrl?: string
-
-	// maximum price
-	maxPrice?: number 
-	// minimum price
-	minPrice?: number 
-	postal?: string
-	// Number of miles 
-	searchDistance?: number
-	searchTitlesOnly?: string
-	maxBedrooms?: string
-	minBedrooms?: string
-	maxBathrooms?: string
-	minBathrooms?: string
-	maxSqft?: string
-	minSqft?: string
-	
-	// maybe bools
-	searchNearby?: string
-	postedToday?: string
-	dogsOk?: string
-	hasImage?: boolean
-	hasPic?: boolean
-
-	offset?: string
-	bundleDuplicates?: string
-	minYear?: number
-	maxYear?: number
-	minMiles?: number
-	maxMiles?: number
-	autoMakeModel?: string
-}
-
-type ClientInitOpts = Pick<ClientOpts, 'city' | 'baseHost' | 'category' | 'nocache'>
-
 export type PostingDetails = PostingDetailsPartial & { replyDetails?: ReplyDetails }
 
 export class Client {
@@ -618,89 +539,57 @@ export class Client {
 		this.replyUrl = options.replyUrl;
 	}
 
-	details (posting: string | { url: string }): Promise<PostingDetails> {
-		let postingUrl: string
-		let requestOptions: URL & { secure: boolean }
+	async details (posting: string | { url: string }): Promise<PostingDetails> {
+		if (core.Validation.isEmpty(posting)) {
+			throw new Error('posting URL is required')
+		}
 
-		// retrieves the posting details directly
-		const getDetails = new Promise<PostingDetailsPartial>((resolve, reject) => {
-			if (core.Validation.isEmpty(posting)) {
-				reject(new Error('posting URL is required'))
-			}
+		if (typeof posting !== 'string' && core.Validation.isEmpty(posting.url)) {
+			throw new Error('posting URL is required')
+		}
 
-			if (typeof posting !== 'string' && core.Validation.isEmpty(posting.url)) {
-				reject(new Error('posting URL is required'))
-			}
+		const postingUrl = typeof posting === 'string' ? posting : posting.url;
+		const opts: URL = urlParse(postingUrl)
+		const requestOptions: URL & { secure: boolean } = Object.assign(opts, { secure: /https/i.test(opts.protocol) })
 
-			postingUrl = typeof posting === 'string' ? posting : posting.url;
-			const opts: URL = urlParse(postingUrl)
-			requestOptions = Object.assign(opts, { secure: /https/i.test(opts.protocol) })
+		debug(`request options set to: ${JSON.stringify(requestOptions)}`);
 
-			debug(`request options set to: ${JSON.stringify(requestOptions)}`);
+		const response = await fetch(requestOptions)
+		const markup = await response.text()
+		debug(`retrieved posting ${posting}. Getting details...`);
+		const details = _getPostingDetails(postingUrl, markup);
 
-			return fetch(requestOptions)
-				.then((value) => {
-					return value.text().then((markup: string) => {
-						debug(`retrieved posting ${posting}. Getting details...`);
-						const details = _getPostingDetails(postingUrl, markup);
-						return resolve(details);
-					})
-				})
-				.catch(reject);
-		});		
+		const _replyUrl = details.replyUrl ? details.replyUrl : this.replyUrl;
+		if (!_replyUrl) {
+			return details
+		}
 
-		const exec = new Promise<PostingDetails>((resolve, reject) => {
-			return getDetails
-				.then(async details => {
-					const replyUrlS = details.replyUrl ? details.replyUrl : this.replyUrl;
+		const replyUrl = urlParse(_replyUrl);
 
-					if (!replyUrlS) {
-						return resolve(details);
-					}
+		if (!replyUrl.hostname) {
+			replyUrl.hostname = requestOptions.hostname;
+			replyUrl.protocol = requestOptions.secure ? PROTOCOL_SECURE : PROTOCOL_INSECURE;
+		}
 
-					const replyUrl = urlParse(replyUrlS);
+		const value = await fetch(replyUrl)
+		const replyDetailsMarkup = await value.text()
+		const replyDetails = _getReplyDetails(replyDetailsMarkup);
 
-					if (!replyUrl.hostname) {
-						replyUrl.hostname = requestOptions.hostname;
-						replyUrl.protocol = requestOptions.secure ? PROTOCOL_SECURE : PROTOCOL_INSECURE;
-					}
-
-					const value = await fetch(replyUrl)
-					const markup = await value.text()
-					const replyDetails = _getReplyDetails(markup);
-
-					return resolve({
-						...details,
-						replyDetails,
-						replyUrl,
-					})
-				})
-				.catch(reject);
-		});
-
-		return exec
+		return {
+			...details,
+			replyDetails,
+			replyUrl,
+		}
 	}
 
 	list (options: ClientOpts): Promise<Posting[]> {
-		/* eslint no-undefined : 0 */
-		return this.search(options, undefined);
+		return this.search(options, undefined)
 	}
 
-	search (options: ClientOpts, query?: string): Promise<Posting[]> {
-		if (typeof query === 'function') {
-			query = typeof options === 'string' ? options : query;
-			options = typeof options === 'string' ? {} : options;
-		}
-
+	async search (options: ClientOpts, query?: string): Promise<Posting[]> {
 		if (core.Validation.isEmpty(query) && typeof options === 'string') {
 			query = options;
 			options = {};
-		}
-
-		if (typeof options === 'function') {
-			options = {};
-			/* eslint no-undefined : 0 */
-			query = undefined;
 		}
 
 		// ensure options is at least a blank object before continuing
@@ -708,35 +597,27 @@ export class Client {
 		// @ts-ignore
 		options.category = CATEGORY_MAP[options.category ?? 'all']
 
-		// create a Promise to execute the request
-		const exec = new Promise<Posting[]>((resolve, reject) => {
-			// remap options for the request
-			const requestOptions = _getRequestOptions(this, options, query);
+		// remap options for the request
+		const requestOptions = _getRequestOptions(this, options, query);
 
-			debug(`request options set to: ${JSON.stringify(requestOptions)}`);
+		debug(`Request options set to: ${JSON.stringify(requestOptions)}`);
 
-			if (core.Validation.isEmpty(requestOptions.hostname)) {
-				return reject(
-					new Error(
-						'unable to set hostname (check to see if city is specified)'));
-			}
+		if (core.Validation.isEmpty(requestOptions.hostname)) {
+			throw new Error('unable to set hostname (check to see if city is specified)')
+		}
 
-			const protocol = requestOptions.secure ? 'https' : 'http'
-			const url = `${protocol}://${requestOptions.hostname}${requestOptions.path}`
-			debug(url)
-			return fetch(url, { headers: requestOptions.headers })
-				.then(value => {
-					return value.text().then((markup: string) => {
-						const postings = _getPostings(requestOptions, markup);
-						debug(`found ${postings.length} postings`);
-	
-						return resolve(postings);
-					})
-				})
-				.catch(reject);
-		});
+		const protocol = requestOptions.secure ? 'https' : 'http'
+		const url = `${protocol}://${requestOptions.hostname}${requestOptions.path}`
+		
+		debug(`Fetching url ${url}`)
+		
+		const response = await fetch(url, { headers: requestOptions.headers })
+		const markup = await response.text()
+		const postings = _getPostings(requestOptions, markup);
 
-		return exec
+		debug(`Found ${postings.length} postings`);
+
+		return postings
 	}
 }
 
