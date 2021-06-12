@@ -1,4 +1,4 @@
-import { Client } from './src/deno-craigslist.ts'
+import { Client } from 'https://deno.land/x/craigslist/client.ts'
 
 const client = new Client({
 	city: 'louisville'
@@ -10,7 +10,7 @@ const listings = await client.list({
 	maxPrice: 10_000,
 	searchDistance: 400,
 	category: 'cars+trucks',
-	// Unsure if this is working
+	// TODO Unsure if this is working
 	hasPic: true,
 })
 

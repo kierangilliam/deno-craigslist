@@ -24,3 +24,9 @@ const details = await client.details(listings[0])
 console.log(listings[0])
 console.log(details)
 ```
+
+Running the example
+
+```
+deno run --allow-net example.ts
+```

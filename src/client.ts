@@ -3,13 +3,14 @@
  *   https://github.com/brozeph/node-craigslist
  * Deno port: Kieran Gill
  */
-// import { Request } from 'reqlib';
 import { urlParse, cheerio } from './deps.ts';
 import { CATEGORY_MAP } from './categories.ts'
 import type { Posting, PostingDetailsPartial, ReplyDetails, ClientOpts, ClientInitOpts } from './types.ts'
 import core from './core.ts';
 
-const debugLog = (name: string) => (message: string) => console.debug(`[${name}]: ${message}`)
+const debugLog = (name: string) => (message: string) => {
+	if (false) console.debug(`[${name}]: ${message}`)
+}
 
 const
 	debug = debugLog('craigslist'),
