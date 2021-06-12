@@ -1,6 +1,6 @@
 # Deno Craigslist 
 
-This is a port of Joshua Thomas's [Node Craigslist](https://github.com/brozeph/node-craigslist).
+This is a port of Joshua Thomas's [Node Craigslist](https://github.com/brozeph/node-craigslist) with types.
 
 ### Usage
 
