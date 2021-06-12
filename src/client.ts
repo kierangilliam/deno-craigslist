@@ -3,7 +3,7 @@
  *   https://github.com/brozeph/node-craigslist
  * Deno port: Kieran Gill
  */
-import { urlParse, cheerio } from './deps.ts';
+import { urlParse, cheerio, TagElement } from './deps.ts';
 import { CATEGORY_MAP } from './categories.ts'
 import type { Posting, PostingDetailsPartial, ReplyDetails, ClientOpts, ClientInitOpts } from './types.ts'
 import core from './core.ts';
@@ -128,20 +128,16 @@ function _getPostingDetails (postingUrl: string, markup: string): PostingDetails
 	// grab attributes if they exist
 	$('div.mapAndAttrs')
 		.find('p.attrgroup')
-		.last()
-		.children()
-		.each((_i, element) => {
-			if ($(element).is('span')) {
-				const attribute = $(element).text().split(/:\s/);
-				attributes[attribute[0].replace(/\s/g, '_')] = attribute[1];
-			}
-		});
-
-	// populate attributes
-	// TODO unsure why he had this in there
-	// if (attributes && Object.keys(attributes).length) {
-	// 	details.attributes = attributes;
-	// }
+		.each((_i, group) => {
+			// @ts-ignore
+			group.children()
+				.each((_i: number, element: TagElement) => {
+					if ($(element).is('span')) {
+						const attribute = $(element).text().split(/:\s/);
+						attributes[attribute[0].replace(/\s/g, '_')] = attribute[1];
+					}
+				});
+		})
 
 	return {
 		// @ts-ignore TODO deno believes this is a used-before-assigned
