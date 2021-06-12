@@ -541,14 +541,6 @@ export class Client {
 	}
 
 	async details (posting: string | { url: string }): Promise<PostingDetails> {
-		if (core.Validation.isEmpty(posting)) {
-			throw new Error('posting URL is required')
-		}
-
-		if (typeof posting !== 'string' && core.Validation.isEmpty(posting.url)) {
-			throw new Error('posting URL is required')
-		}
-
 		const postingUrl = typeof posting === 'string' ? posting : posting.url;
 		const opts: URL = urlParse(postingUrl)
 		const requestOptions: URL & { secure: boolean } = Object.assign(opts, { secure: /https/i.test(opts.protocol) })
@@ -588,7 +580,7 @@ export class Client {
 	}
 
 	async search (options: ClientOpts, query?: string): Promise<Posting[]> {
-		if (core.Validation.isEmpty(query) && typeof options === 'string') {
+		if (query == null && typeof options === 'string') {
 			query = options;
 			options = {};
 		}

@@ -19,16 +19,6 @@ export class Validation {
 				!Object.keys(value).length
 		].some((result) => (result)));
 	}
-
-	static promiseOrCallback<T>(promise: Promise<T>, callback?: (...args: unknown[]) => unknown) {
-		if (!callback) {
-			return promise;
-		}
-
-		return promise
-			.then((result) => (callback(null, result)))
-			.catch(callback);
-	}
 }
 
 export default { Validation };
