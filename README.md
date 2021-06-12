@@ -4,7 +4,7 @@ This is a port of Joshua Thomas's [Node Craigslist](https://github.com/brozeph/n
 
 ### Usage
 
-```
+```javascript
 import { Client } from 'https://deno.land/x/craigslist/client.ts'
 
 const client = new Client({
